@@ -104,4 +104,4 @@ if st.session_state.get("logged_in", False):
             st.write(f"Data: {block.data}")
             st.write(f"Hash: {block.hash}")
             st.write(f"Previous Hash: {block.previous_hash}")
-            st.markdown("---"
+            st.markdown("---")
