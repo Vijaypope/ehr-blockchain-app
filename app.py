@@ -4,30 +4,33 @@ import hashlib
 import json
 from datetime import datetime
 
-# Filenames
+# File paths
 USERS_FILE = "users.json"
 BLOCKCHAIN_FILE = "blockchain.json"
 
-# Error-safe file loaders
+# Error-safe file handlers
 def load_users():
     if os.path.exists(USERS_FILE):
         try:
             with open(USERS_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
         except json.JSONDecodeError:
-            return {}
+            pass
     return {}
 
 def save_users(users):
     with open(USERS_FILE, "w") as f:
-        json.dump(users, f)
+        json.dump(users, f, indent=4)
 
 def load_blockchain():
     if os.path.exists(BLOCKCHAIN_FILE):
         try:
             with open(BLOCKCHAIN_FILE, "r") as f:
                 data = json.load(f)
-                return [Block(**block) for block in data]
+                if isinstance(data, list) and len(data) > 0:
+                    return [Block(**block) for block in data]
         except json.JSONDecodeError:
             pass
     return [Block(0, str(datetime.now()), {"message": "Genesis Block"}, "0")]
@@ -82,11 +85,11 @@ def login_user(username, password):
     users = load_users()
     return username in users and users[username] == hash_password(password)
 
-# Session init
+# Session initialization
 if 'ehr_blockchain' not in st.session_state:
     st.session_state.ehr_blockchain = Blockchain()
 
-# UI
+# Streamlit UI
 st.title("Blockchain-Based EHR Simulation")
 
 menu = ["Sign Up", "Sign In"]
