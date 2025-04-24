@@ -67,14 +67,18 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def register_user(username, password):
+    if not username or not password:
+        return False, "Username and password cannot be empty."
     users = load_users()
     if username in users:
-        return False
+        return False, "Username already exists."
     users[username] = hash_password(password)
     save_users(users)
-    return True
+    return True, "User registered successfully!"
 
 def login_user(username, password):
+    if not username or not password:
+        return False
     users = load_users()
     return username in users and users[username] == hash_password(password)
 
@@ -93,10 +97,11 @@ if choice == "Sign Up":
     new_user = st.text_input("Username")
     new_password = st.text_input("Password", type="password")
     if st.button("Register"):
-        if register_user(new_user, new_password):
-            st.success("User registered successfully! Please Sign In.")
+        success, message = register_user(new_user, new_password)
+        if success:
+            st.success(message)
         else:
-            st.warning("Username already exists.")
+            st.warning(message)
 
 elif choice == "Sign In":
     st.subheader("Login")
@@ -108,7 +113,7 @@ elif choice == "Sign In":
             st.session_state.logged_in = True
             st.session_state.current_user = username
         else:
-            st.error("Invalid credentials.")
+            st.error("Invalid credentials or empty input.")
 
 # Dashboard
 if st.session_state.get("logged_in", False):
