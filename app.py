@@ -4,18 +4,46 @@ import hashlib
 import json
 from datetime import datetime
 
-# File paths for persistent storage
+# Filenames
 USERS_FILE = "users.json"
 BLOCKCHAIN_FILE = "blockchain.json"
 
+# Error-safe file loaders
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+def save_users(users):
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f)
+
+def load_blockchain():
+    if os.path.exists(BLOCKCHAIN_FILE):
+        try:
+            with open(BLOCKCHAIN_FILE, "r") as f:
+                data = json.load(f)
+                return [Block(**block) for block in data]
+        except json.JSONDecodeError:
+            pass
+    return [Block(0, str(datetime.now()), {"message": "Genesis Block"}, "0")]
+
+def save_blockchain(chain):
+    with open(BLOCKCHAIN_FILE, "w") as f:
+        json.dump([block.__dict__ for block in chain], f, indent=4)
+
 # Blockchain classes
 class Block:
-    def __init__(self, index, timestamp, data, previous_hash):
+    def __init__(self, index, timestamp, data, previous_hash, hash=None):
         self.index = index
         self.timestamp = timestamp
         self.data = data
         self.previous_hash = previous_hash
-        self.hash = self.calculate_hash()
+        self.hash = hash or self.calculate_hash()
 
     def calculate_hash(self):
         block_string = f"{self.index}{self.timestamp}{json.dumps(self.data)}{self.previous_hash}"
@@ -23,10 +51,7 @@ class Block:
 
 class Blockchain:
     def __init__(self):
-        self.chain = [self.create_genesis_block()]
-
-    def create_genesis_block(self):
-        return Block(0, str(datetime.now()), {"message": "Genesis Block"}, "0")
+        self.chain = load_blockchain()
 
     def get_latest_block(self):
         return self.chain[-1]
@@ -35,54 +60,12 @@ class Blockchain:
         latest_block = self.get_latest_block()
         new_block = Block(len(self.chain), str(datetime.now()), data, latest_block.hash)
         self.chain.append(new_block)
+        save_blockchain(self.chain)
 
-# Load blockchain from file
-def load_blockchain():
-    if os.path.exists(BLOCKCHAIN_FILE):
-        with open(BLOCKCHAIN_FILE, "r") as f:
-            chain_data = json.load(f)
-            blockchain = Blockchain()
-            blockchain.chain = []
-            for block in chain_data:
-                loaded_block = Block(
-                    block["index"],
-                    block["timestamp"],
-                    block["data"],
-                    block["previous_hash"]
-                )
-                blockchain.chain.append(loaded_block)
-            return blockchain
-    return Blockchain()
-
-# Save blockchain to file
-def save_blockchain(blockchain):
-    chain_data = [{
-        "index": block.index,
-        "timestamp": block.timestamp,
-        "data": block.data,
-        "previous_hash": block.previous_hash,
-        "hash": block.hash
-    } for block in blockchain.chain]
-
-    with open(BLOCKCHAIN_FILE, "w") as f:
-        json.dump(chain_data, f, indent=4)
-
-# Persistent user storage
-def load_users():
-    if os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=4)
-
-# Hash function
+# Authentication
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Sign up
 def register_user(username, password):
     users = load_users()
     if username in users:
@@ -91,16 +74,15 @@ def register_user(username, password):
     save_users(users)
     return True
 
-# Sign in
 def login_user(username, password):
     users = load_users()
     return username in users and users[username] == hash_password(password)
 
-# Initialize blockchain (persistent)
+# Session init
 if 'ehr_blockchain' not in st.session_state:
-    st.session_state.ehr_blockchain = load_blockchain()
+    st.session_state.ehr_blockchain = Blockchain()
 
-# Streamlit UI
+# UI
 st.title("Blockchain-Based EHR Simulation")
 
 menu = ["Sign Up", "Sign In"]
@@ -128,13 +110,12 @@ elif choice == "Sign In":
         else:
             st.error("Invalid credentials.")
 
-# EHR Dashboard
+# Dashboard
 if st.session_state.get("logged_in", False):
     st.subheader("EHR Dashboard")
     patient = st.text_input("Patient Name")
     diagnosis = st.text_input("Diagnosis")
     treatment = st.text_input("Treatment")
-
     if st.button("Add EHR Record"):
         data = {
             "doctor": st.session_state.current_user,
@@ -143,7 +124,6 @@ if st.session_state.get("logged_in", False):
             "treatment": treatment
         }
         st.session_state.ehr_blockchain.add_block(data)
-        save_blockchain(st.session_state.ehr_blockchain)
         st.success("Record added to blockchain!")
 
     if st.button("Show Blockchain"):
@@ -153,4 +133,4 @@ if st.session_state.get("logged_in", False):
             st.write(f"Data: {block.data}")
             st.write(f"Hash: {block.hash}")
             st.write(f"Previous Hash: {block.previous_hash}")
-            st.markdown("---")      
+            st.markdown("---")
